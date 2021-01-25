@@ -1,0 +1,160 @@
+# paquetes de instalción 
+#install.packages("cluster")
+#install.packages("clValid")
+#install.packages("corrplot")
+#install.packages("max.print")
+#install.packages("NbClust")
+#install.packages("tidyverse")
+#install.packages("factoextra")
+#install.packages("dendextend")
+#install.packages("aricode")
+#install.packages("plyr")
+#install.packages("car")
+#install.packages("carData")
+#install.packages("e1071")
+install.packages("lattice")
+install.packages("Metrics")
+#install.packages("neuralnet")
+install.packages("DMwR")
+install.packages("installr")
+install.packages("caret")
+
+# librerías 
+library(ggplot2)
+library(lattice)
+library(dendextend)
+library(factoextra)
+library(tidyverse)
+library(cluster)
+library(clValid)
+library(dendextend)
+library(corrplot)
+library(NbClust)
+library(aricode)
+library(plyr)
+library(caTools)
+library(readr)
+library(caret)
+library(car)
+library(carData)
+library(e1071)
+library(Metrics)
+library(neuralnet)
+library(DMwR)
+library(installr)
+
+
+#TAREA #2
+#Comparación de métricas entre el modelo de soporte de máquina vectorial y
+# las redes neuronales.
+
+
+#Leer datos 
+library(readr)
+Turbina <- read_csv("C:/Users/alexm/Desktop/Módulos de maestría/Maestría herraminetas para controlar procesos/Trabajo acerca de soporte vectorial/Turbina.csv")
+View(Turbina)
+dataset=Turbina[,2:5]
+
+
+##############################
+#Máquina de soporte vectorial# 
+##############################
+
+
+# Validación cruzada 
+set.seed(2)
+división=sample.split(dataset$`LV ActivePower (kW)`,SplitRatio = 0.7)
+summary(división)
+
+#training
+entrenamiento=subset(dataset,división==TRUE)
+
+#Prueba de predicción 
+prediccion=subset(dataset,división==FALSE)
+
+#Escalar en otra dimensión 
+entrenamiento[,1:4]=scale(entrenamiento[,1:4])
+prediccion[,1:4]=scale(prediccion[,1:4])
+
+#regresión utilizando máquina de soporte vectorial 
+
+x1=entrenamiento$`Wind Speed (m/s)`
+x2=entrenamiento$`Theoretical_Power_Curve (KWh)`
+x3=entrenamiento$`Wind Direction (°)`
+y=entrenamiento$`LV ActivePower (kW)`
+
+regresion=svm(formula=y~x1+x2+x3, data = entrenamiento,
+                  type='eps-regression',kernel='linear')
+
+summary(regresion)
+
+# Predicciones con máquina de soporte vectorial 
+
+yestimado=predict(regresion,type='response', 
+                  newdata= prediccion [-1])
+
+#Métricas para evaluar el resultado 
+#yreal=prediccion[,-c(2,3,4)]
+#yreal=as.data.frame(yreal)
+
+
+
+errormsv=prediccion$`LV ActivePower (kW)`-yestimado
+scemsv=sum(errormsv^2)
+mae1msv=sum(abs(errormsv))/length(yestimado)
+
+
+maemsv=mae(prediccion$`LV ActivePower (kW)`,yestimado)
+msemsv=mse(prediccion$`LV ActivePower (kW)`,yestimado)
+rmsemsv=rmse(prediccion$`LV ActivePower (kW)`,yestimado)
+
+
+stcmsv=sum((prediccion$`LV ActivePower (kW)`-(mean(prediccion$`LV ActivePower (kW)`)))^2)
+scrmsv=stcmsv-scemsv
+r2msv=scrmsv/stcmsv
+r2amsv=1-(1-r2msv)*((length(yestimado)-1)/(length(yestimado)-3-1))
+
+##################
+#Redes neuronales#
+##################
+datasetrn=Turbina[,2:5]
+head(datasetrn,5)
+
+
+#División  dataset para training y test 
+set.seed(2)
+ind_test=sample(nrow(datasetrn),nrow(dataset)/4)
+entrn=datasetrn[-ind_test,]
+testrn=datasetrn[ind_test,]
+
+
+colnames(entrn)=c("y1","x11","x22","x33")
+colnames(testrn)=c("y1","x11","x22","x33")
+
+#Entrenamiento red neuronal 
+entrn_scale=scale(entrn[,1:4])
+testrn_scale=scale(testrn[,1:4])
+
+redn=neuralnet(y1~x11+x22+x33,entrn_scale,hidden = c(1))
+plot(redn,rep="best")
+
+#testeo de la red neuronal 
+salida=compute(redn,testrn_scale[,c("x11","x22","x33")])
+
+#predicciones
+
+resultado=data.frame(Real=testrn_scale[,1],
+                     Predicción=salida$net.result)
+#Desescalar los datos originales 
+salida_ori=unscale(salida$net.result,testrn_scale)
+
+#Validación de los resultados (rn=red neuronal)
+errorn=resultado$Real-resultado$Predicción
+scern=sum(errorn^2)
+maern=mae(resultado$Real,resultado$Predicción)
+msern=mse(resultado$Real,resultado$Predicción)
+rmsern=rmse(resultado$Real,resultado$Predicción)
+stcrn=sum((resultado$Real-(mean(resultado$Real)))^2)
+scrrn=stcrn-scern
+r2rn=scrrn/stcrn
+r2arn=1-(1-r2rn)*((length(resultado$Real)-1)/(length(resultado$Real)-3-1))
